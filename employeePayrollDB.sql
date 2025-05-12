@@ -244,6 +244,37 @@ BEGIN
 END;
 GO
 
+CREATE PROCEDURE UpdateEmployeeByID
+    @employee_id INT,
+    @name VARCHAR(100),
+    @phone VARCHAR(15),
+    @email VARCHAR(100),
+    @gender VARCHAR(10),
+    @address VARCHAR(255),
+    @cnic_num VARCHAR(20),
+    @employee_type_id INT,
+    @department_id INT,
+    @grade_id INT,
+    @hire_date DATE
+AS
+BEGIN
+    UPDATE Employees
+    SET
+        name = @name,
+        phone = @phone,
+        email = @email,
+        gender = @gender,
+        address = @address,
+        cnic_num = @cnic_num,
+        employee_type_id = @employee_type_id,
+        department_id = @department_id,
+        grade_id = @grade_id,
+        hire_date = @hire_date
+    WHERE employee_id = @employee_id;
+END;
+GO
+
+
 
 SELECT * FROM Users;
 SELECT * FROM Employees;
