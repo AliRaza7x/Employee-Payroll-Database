@@ -402,18 +402,26 @@ BEGIN
 END;
 GO
 
-CREATE PROCEDURE AutoCheckoutEmployees
+CREATE or alter  PROCEDURE AutoCheckoutEmployees 
 AS
 BEGIN
     DECLARE @yesterday DATE = DATEADD(DAY, -1, CAST(GETDATE() AS DATE));
     DECLARE @defaultOutTime TIME = '17:30:00'; -- Default 5:30 PM
 
-    -- Update records where employee did not check out
-    UPDATE Attendance
-    SET check_out = @defaultOutTime
-    WHERE date = @yesterday AND check_out IS NULL;
+    -- Only run if yesterday is NOT Saturday or Sunday
+    IF DATENAME(WEEKDAY, @yesterday) NOT IN ('Saturday', 'Sunday')
+    BEGIN
+        -- Update only if employee checked in but forgot to check out
+        UPDATE Attendance
+        SET check_out = @defaultOutTime
+        WHERE 
+            date = @yesterday
+            AND check_in IS NOT NULL
+            AND (check_out IS NULL OR check_out = '');
+    END
 END;
 GO
+
 
 SELECT * FROM Users;
 SELECT * FROM Employees;
