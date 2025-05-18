@@ -278,7 +278,7 @@ ALTER TABLE Attendance
 ADD status VARCHAR(20);
 GO
 
-CREATE PROCEDURE CheckInEmployeeByUserId
+CREATE OR ALTER PROCEDURE CheckInEmployeeByUserId
     @user_id INT
 AS
 BEGIN
@@ -338,7 +338,7 @@ ALTER TABLE Attendance
 ADD overtime_hours INT DEFAULT 0;
 
 
-CREATE PROCEDURE CheckOutEmployeeByUserId
+CREATE OR ALTER PROCEDURE CheckOutEmployeeByUserId
     @user_id INT
 AS
 BEGIN
