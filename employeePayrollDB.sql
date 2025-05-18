@@ -274,7 +274,147 @@ BEGIN
 END;
 GO
 
+ALTER TABLE Attendance
+ADD status VARCHAR(20);
+GO
 
+CREATE PROCEDURE CheckInEmployeeByUserId
+    @user_id INT
+AS
+BEGIN
+    DECLARE @employee_id INT;
+    DECLARE @currentDate DATE = CAST(GETDATE() AS DATE);
+    DECLARE @currentTime TIME = CAST(GETDATE() AS TIME);
+    DECLARE @existingCheckIn TIME;
+
+    SELECT @employee_id = employee_id 
+    FROM Employees 
+    WHERE user_id = @user_id;
+
+    IF @employee_id IS NULL
+    BEGIN
+        RAISERROR('No employee found for the given user ID.', 16, 1);
+        RETURN;
+    END
+
+    -- Check if already checked in today
+    SELECT @existingCheckIn = check_in
+    FROM Attendance
+    WHERE employee_id = @employee_id AND date = @currentDate;
+
+    IF @existingCheckIn IS NOT NULL
+    BEGIN
+        RAISERROR('Employee already checked in today.', 16, 1);
+        RETURN;
+    END
+
+    -- Define valid check-in window
+    DECLARE @startTime TIME = '08:30:00';
+    DECLARE @presentCutoff TIME = '09:00:00';
+    DECLARE @lateCutoff TIME = '09:30:00';
+
+    -- Validate check-in time window
+    IF @currentTime < @startTime OR @currentTime > @lateCutoff
+    BEGIN
+        RAISERROR('Check-in is allowed only between 08:30 and 09:30 AM.', 16, 1);
+        RETURN;
+    END
+
+    -- Determine attendance status
+    DECLARE @status VARCHAR(20);
+    IF @currentTime <= @presentCutoff
+        SET @status = 'Present';
+    ELSE IF @currentTime <= @lateCutoff
+        SET @status = 'Late';
+    ELSE
+        SET @status = 'Absent';
+
+    INSERT INTO Attendance (employee_id, date, check_in, status)
+    VALUES (@employee_id, @currentDate, @currentTime, @status);
+END;
+GO
+
+ALTER TABLE Attendance
+ADD overtime_hours INT DEFAULT 0;
+
+
+CREATE PROCEDURE CheckOutEmployeeByUserId
+    @user_id INT
+AS
+BEGIN
+    DECLARE @employee_id INT;
+    DECLARE @currentDate DATE = CAST(GETDATE() AS DATE);
+    DECLARE @currentTime TIME = CAST(GETDATE() AS TIME);
+    DECLARE @existingCheckIn TIME;
+    DECLARE @existingCheckOut TIME;
+
+    SELECT @employee_id = employee_id FROM Employees WHERE user_id = @user_id;
+
+    IF @employee_id IS NULL
+    BEGIN
+        RAISERROR('No employee found for the given user ID.', 16, 1);
+        RETURN;
+    END
+
+    SELECT @existingCheckIn = check_in, @existingCheckOut = check_out
+    FROM Attendance
+    WHERE employee_id = @employee_id AND date = @currentDate;
+
+    IF @existingCheckIn IS NULL
+    BEGIN
+        RAISERROR('Check-in required before check-out.', 16, 1);
+        RETURN;
+    END
+
+    IF @existingCheckOut IS NOT NULL
+    BEGIN
+        RAISERROR('Check-out already done for today.', 16, 1);
+        RETURN;
+    END
+
+    -- Calculate overtime
+    DECLARE @overtime_hours INT = 0;
+    IF @currentTime >= '18:00:00'
+    BEGIN
+        SET @overtime_hours = DATEDIFF(HOUR, '18:00:00', 
+                            CASE WHEN @currentTime > '22:00:00' THEN '22:00:00' ELSE @currentTime END);
+    END
+
+    UPDATE Attendance
+    SET check_out = @currentTime, overtime_hours = @overtime_hours
+    WHERE employee_id = @employee_id AND date = @currentDate;
+END;
+GO
+
+CREATE PROCEDURE MarkAbsentees
+AS
+BEGIN
+    DECLARE @today DATE = CAST(GETDATE() AS DATE);
+
+    -- Insert an 'Absent' record for each employee who didn't check in today
+    INSERT INTO Attendance (employee_id, date, status)
+    SELECT e.employee_id, @today, 'Absent'
+    FROM Employees e
+    WHERE NOT EXISTS (
+        SELECT 1 FROM Attendance a
+        WHERE a.employee_id = e.employee_id AND a.date = @today
+    );
+END;
+GO
+
+CREATE PROCEDURE AutoCheckoutEmployees
+AS
+BEGIN
+    DECLARE @yesterday DATE = DATEADD(DAY, -1, CAST(GETDATE() AS DATE));
+    DECLARE @defaultOutTime TIME = '17:30:00'; -- Default 5:30 PM
+
+    -- Update records where employee did not check out
+    UPDATE Attendance
+    SET check_out = @defaultOutTime
+    WHERE date = @yesterday AND check_out IS NULL;
+END;
+GO
 
 SELECT * FROM Users;
 SELECT * FROM Employees;
+Select * FROM Attendance;
