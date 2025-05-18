@@ -77,6 +77,13 @@ CREATE TABLE Attendance (
 );
 GO
 
+--Leave Type Table
+CREATE TABLE LeaveTypes (
+    leave_type_id INT PRIMARY KEY IDENTITY(1,1),
+    type_name VARCHAR(50) NOT NULL
+);
+GO
+
 -- Leave Status Table
 CREATE TABLE LeaveStatus (
 	status_id INT PRIMARY KEY IDENTITY(1,1),
@@ -94,6 +101,15 @@ CREATE TABLE Leaves (
     FOREIGN KEY (employee_id) REFERENCES Employees(employee_id),
 	FOREIGN KEY (status_id) REFERENCES LeaveStatus(status_id)
 );
+GO
+
+ALTER TABLE Leaves
+ADD leave_type_id INT;
+GO
+
+ALTER TABLE Leaves
+ADD CONSTRAINT FK_Leaves_LeaveTypes
+FOREIGN KEY (leave_type_id) REFERENCES LeaveTypes(leave_type_id);
 GO
 
 -- Payroll Table
@@ -144,6 +160,22 @@ INSERT INTO Grades VALUES
 (18),
 (19),
 (20);
+GO
+
+INSERT INTO LeaveStatus (status) VALUES 
+('Pending'), 
+('Approved'), 
+('Rejected');
+GO
+
+INSERT INTO LeaveTypes (type_name) 
+VALUES 
+('Paid Leave'), 
+('Sick Leave'), 
+('Maternity Leave'), 
+('Paternity Leave'), 
+('Travel Leave'), 
+('Casual Leave');
 GO
 
 CREATE PROCEDURE InsertEmployee
@@ -422,7 +454,17 @@ BEGIN
 END;
 GO
 
+CREATE PROCEDURE InsertLeave
+    @employee_id INT,
+    @leave_date DATE,
+    @leave_reason VARCHAR(255),
+    @leave_type_id INT
+AS
+BEGIN
+    DECLARE @status_id INT;
+    SELECT @status_id = status_id FROM LeaveStatus WHERE status = 'Pending';
 
-SELECT * FROM Users;
-SELECT * FROM Employees;
-Select * FROM Attendance;
+    INSERT INTO Leaves (employee_id, leave_date, leave_reason, status_id, leave_type_id)
+    VALUES (@employee_id, @leave_date, @leave_reason, @status_id, @leave_type_id);
+END;
+GO
