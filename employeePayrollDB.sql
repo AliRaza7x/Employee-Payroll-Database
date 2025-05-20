@@ -468,3 +468,23 @@ BEGIN
     VALUES (@employee_id, @leave_date, @leave_reason, @status_id, @leave_type_id);
 END;
 GO
+
+--view for ViewAllAbsences
+
+CREATE OR ALTER VIEW Absences AS
+SELECT 
+    e.employee_id, 
+    e.name, 
+    d.department_name, 
+    all_dates.date
+FROM Employees e
+JOIN Departments d ON e.department_id = d.department_id
+CROSS JOIN (
+    SELECT DISTINCT date 
+    FROM Attendance
+    WHERE DATENAME(WEEKDAY, date) NOT IN ('Saturday', 'Sunday')  -- exclude weekends
+) AS all_dates
+LEFT JOIN Attendance a 
+    ON e.employee_id = a.employee_id AND a.date = all_dates.date
+WHERE a.attendance_id IS NULL;
+
