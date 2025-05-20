@@ -488,3 +488,4 @@ LEFT JOIN Attendance a
     ON e.employee_id = a.employee_id AND a.date = all_dates.date
 WHERE a.attendance_id IS NULL;
 
+SELECT * FROM Users
