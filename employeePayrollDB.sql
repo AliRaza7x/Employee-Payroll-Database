@@ -138,6 +138,10 @@ INSERT INTO Users (username, password, role) VALUES
 ('user1', 'userpass', 'user');
 GO
 
+UPDATE Users
+SET role = 'superadmin'
+WHERE user_id = 1;
+
 INSERT INTO EmployeeType VALUES
 ('Full-Time'),
 ('Contract-Based');
@@ -489,3 +493,6 @@ LEFT JOIN Attendance a
 WHERE a.attendance_id IS NULL;
 
 SELECT * FROM Users
+
+INSERT INTO Users (username, password, role) VALUES
+('admin2', 'adminpass', 'admin');
