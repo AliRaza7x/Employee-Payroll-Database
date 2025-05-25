@@ -91,6 +91,21 @@ CREATE TABLE LeaveStatus (
 );
 GO
 
+--Leave Requests
+CREATE TABLE LeaveRequest (
+    request_id INT PRIMARY KEY IDENTITY(1,1),
+    employee_id INT NOT NULL,
+    leave_start_date DATE NOT NULL,
+	leave_end_date DATE NOT NULL,
+	leave_type_id INT NOT NULL,
+    leave_reason VARCHAR(255),
+    status_id INT NOT NULL,
+    FOREIGN KEY (employee_id) REFERENCES Employees(employee_id),
+	FOREIGN KEY (status_id) REFERENCES LeaveStatus(status_id),
+	FOREIGN KEY (leave_type_id) REFERENCES LeaveTypes(leave_type_id)
+);
+GO
+
 -- Leaves Table
 CREATE TABLE Leaves (
     leave_id INT PRIMARY KEY IDENTITY(1,1),
@@ -108,8 +123,21 @@ ADD leave_type_id INT;
 GO
 
 ALTER TABLE Leaves
+ADD leave_end_date DATE NOT NULL;
+GO
+
+ALTER TABLE Leaves
 ADD CONSTRAINT FK_Leaves_LeaveTypes
 FOREIGN KEY (leave_type_id) REFERENCES LeaveTypes(leave_type_id);
+GO
+
+ALTER TABLE Leaves
+ADD request_id INT;
+GO
+
+ALTER TABLE Leaves
+ADD CONSTRAINT FK_Leaves_LeaveRequest
+FOREIGN KEY (request_id) REFERENCES LeaveRequest(request_id);
 GO
 
 -- Payroll Table
@@ -458,9 +486,10 @@ BEGIN
 END;
 GO
 
-CREATE PROCEDURE InsertLeave
+CREATE OR ALTER PROCEDURE InsertLeave
     @employee_id INT,
-    @leave_date DATE,
+    @leave_start_date DATE,
+	@leave_end_date DATE,
     @leave_reason VARCHAR(255),
     @leave_type_id INT
 AS
@@ -468,8 +497,8 @@ BEGIN
     DECLARE @status_id INT;
     SELECT @status_id = status_id FROM LeaveStatus WHERE status = 'Pending';
 
-    INSERT INTO Leaves (employee_id, leave_date, leave_reason, status_id, leave_type_id)
-    VALUES (@employee_id, @leave_date, @leave_reason, @status_id, @leave_type_id);
+    INSERT INTO LeaveRequest
+    VALUES (@employee_id, @leave_start_date, @leave_end_date, @leave_type_id, @leave_reason, @status_id);
 END;
 GO
 
@@ -521,10 +550,66 @@ BEGIN
 END;
 GO
 
+CREATE OR ALTER PROCEDURE GetAllLeaveRequests
+AS
+BEGIN
+    SELECT 
+        lr.request_id,
+        lr.employee_id,
+        lr.leave_start_date,
+        lr.leave_end_date,
+        lr.leave_reason,
+        lt.type_name AS leave_type,
+        ls.status AS leave_status
+    FROM 
+        LeaveRequest lr
+        JOIN LeaveTypes lt ON lr.leave_type_id = lt.leave_type_id
+        JOIN LeaveStatus ls ON lr.status_id = ls.status_id;
+END;
+GO
 
+CREATE OR ALTER PROCEDURE ApproveLeaveRequest
+    @request_id INT
+AS
+BEGIN
+    DECLARE @statusApproved INT;
+    SELECT @statusApproved = status_id FROM LeaveStatus WHERE status = 'Approved';
 
+    UPDATE LeaveRequest
+    SET status_id = @statusApproved
+    WHERE request_id = @request_id;
 
+    INSERT INTO Leaves (
+        employee_id,
+        leave_date,
+        leave_end_date,
+        leave_reason,
+        status_id,
+        leave_type_id,
+        request_id
+    )
+    SELECT 
+        employee_id,
+        leave_start_date,
+        leave_end_date,
+        leave_reason,
+        @statusApproved,
+        leave_type_id,
+        request_id -- New
+    FROM LeaveRequest
+    WHERE request_id = @request_id;
+END;
+GO
 
-select * from Users
-Select * from Employees
-EXEC GetEmployeeDetailsByUserId @UserId = 3
+CREATE OR ALTER PROCEDURE RejectLeaveRequest
+    @request_id INT
+AS
+BEGIN
+    DECLARE @statusRejected INT;
+    SELECT @statusRejected = status_id FROM LeaveStatus WHERE status = 'Rejected';
+
+    UPDATE LeaveRequest
+    SET status_id = @statusRejected
+    WHERE request_id = @request_id;
+END;
+GO
