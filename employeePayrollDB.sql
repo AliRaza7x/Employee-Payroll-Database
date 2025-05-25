@@ -502,8 +502,6 @@ BEGIN
 END;
 GO
 
---view for ViewAllAbsences
-
 CREATE OR ALTER VIEW Absences AS
 SELECT 
     e.employee_id, 
@@ -611,5 +609,147 @@ BEGIN
     UPDATE LeaveRequest
     SET status_id = @statusRejected
     WHERE request_id = @request_id;
+END;
+GO
+
+-- Update ViewAllEmployees to include password
+CREATE OR ALTER PROCEDURE ViewAllEmployees
+AS
+BEGIN
+    SELECT 
+        e.employee_id,
+        u.username,
+        u.password,
+        e.name,
+        e.phone,
+        e.email,
+        e.gender,
+        e.address,
+        e.cnic_num,
+        et.type_name AS employee_type,
+        d.department_name,
+        g.grade,
+        e.hire_date
+    FROM Employees e
+    INNER JOIN Users u ON e.user_id = u.user_id
+    INNER JOIN EmployeeType et ON e.employee_type_id = et.employee_type_id
+    INNER JOIN Departments d ON e.department_id = d.department_id
+    INNER JOIN Grades g ON e.grade_id = g.grade_id;
+END;
+GO
+
+-- Update ViewEmployeesByDepartment to include password
+CREATE OR ALTER PROCEDURE ViewEmployeesByDepartment
+    @department_id INT
+AS
+BEGIN
+    SELECT 
+        e.employee_id,
+        u.username,
+        u.password,
+        e.name,
+        e.phone,
+        e.email,
+        e.gender,
+        e.address,
+        e.cnic_num,
+        et.type_name AS employee_type,
+        d.department_name,
+        g.grade,
+        e.hire_date
+    FROM Employees e
+    INNER JOIN Users u ON e.user_id = u.user_id
+    INNER JOIN EmployeeType et ON e.employee_type_id = et.employee_type_id
+    INNER JOIN Departments d ON e.department_id = d.department_id
+    INNER JOIN Grades g ON e.grade_id = g.grade_id
+    WHERE e.department_id = @department_id;
+END;
+GO
+
+-- Update ViewEmployeesByGrade to include password
+CREATE OR ALTER PROCEDURE ViewEmployeesByGrade
+    @grade_id INT
+AS
+BEGIN
+    SELECT 
+        e.employee_id,
+        u.username,
+        u.password,
+        e.name,
+        e.phone,
+        e.email,
+        e.gender,
+        e.address,
+        e.cnic_num,
+        et.type_name AS employee_type,
+        d.department_name,
+        g.grade,
+        e.hire_date
+    FROM Employees e
+    INNER JOIN Users u ON e.user_id = u.user_id
+    INNER JOIN EmployeeType et ON e.employee_type_id = et.employee_type_id
+    INNER JOIN Departments d ON e.department_id = d.department_id
+    INNER JOIN Grades g ON e.grade_id = g.grade_id
+    WHERE e.grade_id = @grade_id;
+END;
+GO
+
+-- Update ViewEmployeesByType to include password
+CREATE OR ALTER PROCEDURE ViewEmployeesByType
+    @employee_type_id INT
+AS
+BEGIN
+    SELECT 
+        e.employee_id,
+        u.username,
+        u.password,
+        e.name,
+        e.phone,
+        e.email,
+        e.gender,
+        e.address,
+        e.cnic_num,
+        et.type_name AS employee_type,
+        d.department_name,
+        g.grade,
+        e.hire_date
+    FROM Employees e
+    INNER JOIN Users u ON e.user_id = u.user_id
+    INNER JOIN EmployeeType et ON e.employee_type_id = et.employee_type_id
+    INNER JOIN Departments d ON e.department_id = d.department_id
+    INNER JOIN Grades g ON e.grade_id = g.grade_id
+    WHERE e.employee_type_id = @employee_type_id;
+END;
+GO
+
+--had some issues filtering without a dedicated stored procedure
+CREATE OR ALTER PROCEDURE ViewFilteredEmployees
+    @department_id INT = NULL,
+    @grade_id INT = NULL,
+    @employee_type_id INT = NULL
+AS
+BEGIN
+    SELECT 
+        e.employee_id,
+        u.username,
+        u.password,
+        e.name,
+        e.phone,
+        e.email,
+        e.gender,
+        e.address,
+        e.cnic_num,
+        et.type_name AS employee_type,
+        d.department_name,
+        g.grade,
+        e.hire_date
+    FROM Employees e
+    INNER JOIN Users u ON e.user_id = u.user_id
+    INNER JOIN EmployeeType et ON e.employee_type_id = et.employee_type_id
+    INNER JOIN Departments d ON e.department_id = d.department_id
+    INNER JOIN Grades g ON e.grade_id = g.grade_id
+    WHERE (@department_id IS NULL OR e.department_id = @department_id)
+    AND (@grade_id IS NULL OR e.grade_id = @grade_id)
+    AND (@employee_type_id IS NULL OR e.employee_type_id = @employee_type_id);
 END;
 GO
