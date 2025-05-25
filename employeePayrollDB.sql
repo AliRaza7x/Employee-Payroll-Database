@@ -496,3 +496,35 @@ SELECT * FROM Users
 
 INSERT INTO Users (username, password, role) VALUES
 ('admin2', 'adminpass', 'admin');
+
+CREATE OR ALTER PROCEDURE GetEmployeeDetailsByUserId
+    @UserId INT
+AS
+BEGIN
+    SELECT 
+        e.employee_id,
+        e.name,
+        e.phone,
+        e.email,
+        e.gender,
+        e.address,
+        e.cnic_num,
+        et.type_name AS employee_type,
+        d.department_name,
+        g.grade,
+        e.hire_date
+    FROM Employees e
+    INNER JOIN EmployeeType et ON e.employee_type_id = et.employee_type_id
+    INNER JOIN Departments d ON e.department_id = d.department_id
+    INNER JOIN Grades g ON e.grade_id = g.grade_id
+    WHERE e.user_id = @UserId;
+END;
+GO
+
+
+
+
+
+select * from Users
+Select * from Employees
+EXEC GetEmployeeDetailsByUserId @UserId = 3
