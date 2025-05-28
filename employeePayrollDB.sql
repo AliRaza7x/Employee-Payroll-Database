@@ -753,3 +753,147 @@ BEGIN
     AND (@employee_type_id IS NULL OR e.employee_type_id = @employee_type_id);
 END;
 GO
+
+
+--omer 26/5/25
+-- Get total allowed leaves for an employee based on their department
+
+--run this
+CREATE OR ALTER PROCEDURE GetEmployeeAllowedLeaves
+    @employee_id INT
+AS
+BEGIN
+    SELECT ss.allowed_leaves
+    FROM SalaryStructure ss
+    JOIN Employees e ON e.department_id = ss.department_id
+    WHERE e.employee_id = @employee_id;
+END;
+GO
+
+--run this
+CREATE OR ALTER PROCEDURE GetEmployeeUsedLeaves
+    @EmployeeId INT,
+    @Year INT
+AS
+BEGIN
+    SELECT ISNULL(SUM(DATEDIFF(DAY, lr.leave_start_date, lr.leave_end_date) + 1), 0) AS used_leaves
+    FROM LeaveRequest lr
+    JOIN LeaveStatus ls ON lr.status_id = ls.status_id
+    WHERE lr.employee_id = 1
+    AND YEAR(lr.leave_start_date) = 2024
+    AND ls.status = 'Approved'
+END
+
+--run this
+-- Get leave history for an employee
+CREATE OR ALTER PROCEDURE GetEmployeeLeaveHistory
+    @employee_id INT
+AS
+BEGIN
+    SELECT 
+        lr.request_id,
+        lr.leave_start_date,
+        lr.leave_end_date,
+        lt.type_name,
+        lr.leave_reason,
+        ls.status
+    FROM LeaveRequest lr
+    JOIN LeaveTypes lt ON lr.leave_type_id = lt.leave_type_id
+    JOIN LeaveStatus ls ON lr.status_id = ls.status_id
+    WHERE lr.employee_id = @employee_id
+    ORDER BY lr.leave_start_date DESC;
+END;
+GO
+
+
+
+--sample insert queries to test ViewLeaves
+--run this if you dont have much data
+-- Insert sample data into SalaryStructure
+INSERT INTO SalaryStructure (department_id, base_salary, allowed_leaves) VALUES
+(1, 50000.00, 20),  -- IT
+(2, 45000.00, 20),  -- Sales
+(3, 48000.00, 20),  -- HR
+(4, 47000.00, 20),  -- Operations
+(5, 52000.00, 20);  -- Finance
+GO
+
+-- Insert sample leave requests
+INSERT INTO LeaveRequest (employee_id, leave_start_date, leave_end_date, leave_type_id, leave_reason, status_id) VALUES
+(1, '2024-05-01', '2024-05-03', 1, 'Family vacation', 2),  -- Approved
+(1, '2024-06-15', '2024-06-16', 2, 'Not feeling well', 1), -- Pending
+(1, '2024-04-10', '2024-04-12', 3, 'Maternity leave', 2);  -- Approved
+GO
+
+
+
+--omer 28/05/25
+--run this
+
+--sample data
+-- Approved leave
+INSERT INTO LeaveRequest (employee_id, leave_start_date, leave_end_date, leave_type_id, leave_reason, status_id)
+VALUES (1, '2025-05-10', '2025-05-12', 1, 'Family vacation', (SELECT status_id FROM LeaveStatus WHERE status = 'Approved'));
+
+-- Pending leave
+INSERT INTO LeaveRequest (employee_id, leave_start_date, leave_end_date, leave_type_id, leave_reason, status_id)
+VALUES (1, '2025-06-01', '2025-06-02', 2, 'Sick leave', (SELECT status_id FROM LeaveStatus WHERE status = 'Pending'));
+
+-- Rejected leave
+INSERT INTO LeaveRequest (employee_id, leave_start_date, leave_end_date, leave_type_id, leave_reason, status_id)
+VALUES (4, '2025-07-15', '2025-07-16', 3, 'Personal reason', (SELECT status_id FROM LeaveStatus WHERE status = 'Approved'));
+
+-- Another approved leave
+INSERT INTO LeaveRequest (employee_id, leave_start_date, leave_end_date, leave_type_id, leave_reason, status_id)
+VALUES (1, '2025-08-05', '2025-08-07', 1, 'Travel', (SELECT status_id FROM LeaveStatus WHERE status = 'Approved'));
+
+
+SELECT * FROM Employees
+
+
+
+--view absences
+--run this
+CREATE OR ALTER VIEW EmployeeAbsences AS 
+SELECT 
+    e.employee_id, 
+    e.name, 
+    d.department_name, 
+    a.date, 
+    a.status, 
+    lt.type_name as leave_type, 
+    lr.leave_reason 
+FROM Employees e 
+JOIN Departments d ON e.department_id = d.department_id 
+LEFT JOIN Attendance a ON e.employee_id = a.employee_id 
+LEFT JOIN Leaves l ON e.employee_id = l.employee_id AND a.date = l.leave_date 
+LEFT JOIN LeaveTypes lt ON l.leave_type_id = lt.leave_type_id 
+LEFT JOIN LeaveRequest lr ON l.leave_date = lr.leave_start_date 
+WHERE a.status = 'Absent' OR l.leave_date IS NOT NULL;
+
+
+-- dummy data for absences:
+-- First, let's make sure we have some test data in the Attendance table
+INSERT INTO Attendance (employee_id, date, status) VALUES
+-- Employee 1 absences
+(1, '2025-02-05', 'Absent'),
+(1, '2025-03-12', 'Absent'),
+(1, '2025-05-01', 'Absent'),
+(1, '2025-06-10', 'Absent'),
+-- Employee 4 absences
+(4, '2025-01-15', 'Absent'),
+(4, '2025-02-20', 'Absent'),
+(4, '2025-04-05', 'Absent'),
+(4, '2025-05-15', 'Absent'),
+(4, '2025-06-20', 'Absent');
+
+-- Let's also add some regular attendance records to make it more realistic
+INSERT INTO Attendance (employee_id, date, check_in, check_out, status) VALUES
+-- Employee 1 regular attendance
+(1, '2025-02-06', '08:45:00', '17:30:00', 'Present'),
+(1, '2025-03-13', '08:50:00', '17:30:00', 'Present'),
+(1, '2025-05-02', '08:55:00', '17:30:00', 'Present'),
+-- Employee 4 regular attendance
+(4, '2025-01-16', '08:40:00', '17:30:00', 'Present'),
+(4, '2025-02-21', '08:42:00', '17:30:00', 'Present'),
+(4, '2025-04-06', '08:48:00', '17:30:00', 'Present');
