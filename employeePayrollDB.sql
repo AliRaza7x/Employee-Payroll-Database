@@ -820,9 +820,9 @@ GO
 
 -- Insert sample leave requests
 INSERT INTO LeaveRequest (employee_id, leave_start_date, leave_end_date, leave_type_id, leave_reason, status_id) VALUES
-(1, '2024-05-01', '2024-05-03', 1, 'Family vacation', 2),  -- Approved
-(1, '2024-06-15', '2024-06-16', 2, 'Not feeling well', 1), -- Pending
-(1, '2024-04-10', '2024-04-12', 3, 'Maternity leave', 2);  -- Approved
+(3, '2024-05-01', '2024-05-03', 1, 'Family vacation', 2),  -- Approved
+(3, '2024-06-15', '2024-06-16', 2, 'Not feeling well', 1), -- Pending
+(3, '2024-04-10', '2024-04-12', 3, 'Maternity leave', 2);  -- Approved
 GO
 
 
@@ -833,11 +833,11 @@ GO
 --sample data
 -- Approved leave
 INSERT INTO LeaveRequest (employee_id, leave_start_date, leave_end_date, leave_type_id, leave_reason, status_id)
-VALUES (1, '2025-05-10', '2025-05-12', 1, 'Family vacation', (SELECT status_id FROM LeaveStatus WHERE status = 'Approved'));
+VALUES (3, '2025-05-10', '2025-05-12', 1, 'Family vacation', (SELECT status_id FROM LeaveStatus WHERE status = 'Approved'));
 
 -- Pending leave
 INSERT INTO LeaveRequest (employee_id, leave_start_date, leave_end_date, leave_type_id, leave_reason, status_id)
-VALUES (1, '2025-06-01', '2025-06-02', 2, 'Sick leave', (SELECT status_id FROM LeaveStatus WHERE status = 'Pending'));
+VALUES (3, '2025-06-01', '2025-06-02', 2, 'Sick leave', (SELECT status_id FROM LeaveStatus WHERE status = 'Pending'));
 
 -- Rejected leave
 INSERT INTO LeaveRequest (employee_id, leave_start_date, leave_end_date, leave_type_id, leave_reason, status_id)
@@ -845,7 +845,7 @@ VALUES (4, '2025-07-15', '2025-07-16', 3, 'Personal reason', (SELECT status_id F
 
 -- Another approved leave
 INSERT INTO LeaveRequest (employee_id, leave_start_date, leave_end_date, leave_type_id, leave_reason, status_id)
-VALUES (1, '2025-08-05', '2025-08-07', 1, 'Travel', (SELECT status_id FROM LeaveStatus WHERE status = 'Approved'));
+VALUES (3, '2025-08-05', '2025-08-07', 1, 'Travel', (SELECT status_id FROM LeaveStatus WHERE status = 'Approved'));
 
 
 SELECT * FROM Employees
@@ -876,10 +876,10 @@ WHERE a.status = 'Absent' OR l.leave_date IS NOT NULL;
 -- First, let's make sure we have some test data in the Attendance table
 INSERT INTO Attendance (employee_id, date, status) VALUES
 -- Employee 1 absences
-(1, '2025-02-05', 'Absent'),
-(1, '2025-03-12', 'Absent'),
-(1, '2025-05-01', 'Absent'),
-(1, '2025-06-10', 'Absent'),
+(3, '2025-02-05', 'Absent'),
+(3, '2025-03-12', 'Absent'),
+(3, '2025-05-01', 'Absent'),
+(3, '2025-06-10', 'Absent'),
 -- Employee 4 absences
 (4, '2025-01-15', 'Absent'),
 (4, '2025-02-20', 'Absent'),
@@ -890,9 +890,9 @@ INSERT INTO Attendance (employee_id, date, status) VALUES
 -- Let's also add some regular attendance records to make it more realistic
 INSERT INTO Attendance (employee_id, date, check_in, check_out, status) VALUES
 -- Employee 1 regular attendance
-(1, '2025-02-06', '08:45:00', '17:30:00', 'Present'),
-(1, '2025-03-13', '08:50:00', '17:30:00', 'Present'),
-(1, '2025-05-02', '08:55:00', '17:30:00', 'Present'),
+(3, '2025-02-06', '08:45:00', '17:30:00', 'Present'),
+(3, '2025-03-13', '08:50:00', '17:30:00', 'Present'),
+(3, '2025-05-02', '08:55:00', '17:30:00', 'Present'),
 -- Employee 4 regular attendance
 (4, '2025-01-16', '08:40:00', '17:30:00', 'Present'),
 (4, '2025-02-21', '08:42:00', '17:30:00', 'Present'),
