@@ -974,7 +974,7 @@ END;
 
 
 -- run this (9 june 2025)
-CREATE OR ALTER PROCEDURE dbo.GetBaseSalary
+CREATE OR ALTER PROCEDURE GetBaseSalary
     @employee_id INT,
     @base_salary DECIMAL(10,2) OUTPUT
 AS
@@ -982,8 +982,8 @@ BEGIN
     SET NOCOUNT ON;
 
     SELECT TOP 1 @base_salary = ss.base_salary
-    FROM dbo.Employees e
-    JOIN dbo.SalaryStructure ss ON e.department_id = ss.department_id
+    FROM Employees e
+    JOIN SalaryStructure ss ON e.department_id = ss.department_id
     WHERE e.employee_id = @employee_id;
 
     IF @base_salary IS NULL
@@ -995,7 +995,7 @@ GO
 
 
 -- run this (9 june 2025)
-CREATE OR ALTER PROCEDURE dbo.GetUnexcusedAbsences
+CREATE OR ALTER PROCEDURE GetUnexcusedAbsences
     @employee_id INT,
     @month INT,
     @year INT,
@@ -1005,15 +1005,15 @@ BEGIN
     SET NOCOUNT ON;
 
     SELECT @absent_days = COUNT(*)
-    FROM dbo.Attendance a
+    FROM Attendance a
     WHERE a.employee_id = @employee_id
       AND MONTH(a.date) = @month
       AND YEAR(a.date) = @year
       AND a.status = 'Absent'
       AND NOT EXISTS (
           SELECT 1
-          FROM dbo.Leaves l
-          JOIN dbo.LeaveStatus ls ON ls.status_id = l.status_id
+          FROM Leaves l
+          JOIN LeaveStatus ls ON ls.status_id = l.status_id
           WHERE l.employee_id = a.employee_id
             AND l.leave_date = a.date
             AND ls.status = 'Approved'
@@ -1025,7 +1025,7 @@ END
 GO
 
 -- run this (9 june 2025)
-CREATE OR ALTER PROCEDURE dbo.GetOvertimeAndFoodAllowance
+CREATE OR ALTER PROCEDURE GetOvertimeAndFoodAllowance
     @employee_id INT,
     @month INT,
     @year INT,
@@ -1042,7 +1042,7 @@ BEGIN
                                         THEN 1000 
                                         ELSE 0 
                                      END), 0)
-    FROM dbo.Attendance a
+    FROM Attendance a
     WHERE a.employee_id = @employee_id
       AND MONTH(a.date) = @month
       AND YEAR(a.date) = @year;
@@ -1054,7 +1054,7 @@ END
 GO
 
 -- run this (9 june 2025)
-CREATE OR ALTER PROCEDURE dbo.CalculateTax
+CREATE OR ALTER PROCEDURE CalculateTax
     @base_salary DECIMAL(10,2),
     @tax DECIMAL(10,2) OUTPUT
 AS
@@ -1165,7 +1165,7 @@ END
 GO
 
 -- run this (9 june 2025)
-ALTER PROCEDURE UpdatePayroll
+CREATE OR ALTER PROCEDURE UpdatePayroll
     @emp_id INT,
     @month VARCHAR(2),
     @year INT,
@@ -1181,14 +1181,13 @@ BEGIN
     SET NOCOUNT ON;
 
     DECLARE @overtime_pay DECIMAL(10, 2);
-    SET @overtime_pay = @overtime_hours * 200;  -- assuming 200 per hour overtime rate
+    SET @overtime_pay = @overtime_hours * 10000;  -- assuming 200 per hour overtime rate
 
     DECLARE @net_salary DECIMAL(10, 2);
     SET @net_salary = @base_salary 
                       + @bonus 
                       + @overtime_pay 
                       + @food_allowance
-                      - @absence_deduction
                       - @total_deductions
                       - @tax;
 
@@ -1306,9 +1305,42 @@ BEGIN
 END;
 GO
 
+--9th june run
+CREATE OR ALTER PROCEDURE GetPayrollSlipForEmployee
+    @employee_id INT,
+    @month INT,
+    @year INT
+AS
+BEGIN
+    SET NOCOUNT ON;
 
+    BEGIN TRY
+        BEGIN TRANSACTION;
 
+        -- Convert month to string to match pay_month datatype
+        DECLARE @monthStr VARCHAR(20) = CAST(@month AS VARCHAR(20));
 
+        SELECT 
+            p.*,
+            e.name,
+            d.department_name,
+            g.grade
+        FROM Payroll p
+        JOIN Employees e ON p.employee_id = e.employee_id
+        JOIN Departments d ON e.department_id = d.department_id
+        JOIN Grades g ON e.grade_id = g.grade_id
+        WHERE p.employee_id = @employee_id
+          AND p.pay_month = @monthStr
+          AND p.pay_year = @year;
 
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
 
+        -- Optionally, re-throw the error
+        THROW;
+    END CATCH
+END
 
