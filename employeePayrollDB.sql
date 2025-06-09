@@ -1222,6 +1222,90 @@ BEGIN
 END;
 
 
+-- run this (9 june 2025)
+CREATE OR ALTER PROCEDURE CalculatePayrollForEmployee
+    @employee_id INT,
+    @month INT,
+    @year INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE 
+        @bonus DECIMAL(9,2),
+        @base_salary DECIMAL(9,2),
+        @absent_days INT,
+        @overtime_hours INT,
+        @food_allowance DECIMAL(9,2),
+        @tax DECIMAL(9,2),
+        @deductions DECIMAL(9,2),
+        @absence_deduction DECIMAL(9,2);
+
+    -- Get all needed values
+    EXEC GetBonusByGrade @employee_id, @month, @year, @bonus OUTPUT;
+    EXEC GetBaseSalary @employee_id, @base_salary OUTPUT;
+    EXEC GetUnexcusedAbsences @employee_id, @month, @year, @absent_days OUTPUT;
+    EXEC GetOvertimeAndFoodAllowance @employee_id, @month, @year, @overtime_hours OUTPUT, @food_allowance OUTPUT;
+
+    DECLARE @working_days INT = 22;
+    SET @absence_deduction = (@base_salary / @working_days) * @absent_days;
+
+    DECLARE @gross_income DECIMAL(9,2) = @base_salary + (@overtime_hours * 200) + @food_allowance + @bonus;
+
+    SET @deductions = @absence_deduction;
+
+    DECLARE @taxable_income DECIMAL(9,2) = @gross_income - @absence_deduction;
+    EXEC CalculateTax @taxable_income, @tax OUTPUT;
+
+    SET @deductions = @deductions + @tax;
+
+    DECLARE @net_salary DECIMAL(9,2) = @gross_income - @deductions;
+
+    -- Convert month to string to match Payroll.month datatype (varchar)
+    DECLARE @monthStr VARCHAR(20) = CAST(@month AS VARCHAR(20));
+
+    -- Call UpsertPayrollRecord including all new columns
+    EXEC UpsertPayrollRecord
+        @employee_id = @employee_id,
+        @month = @monthStr,
+        @year = @year,
+        @base_salary = @base_salary,
+        @deductions = @deductions,
+        @bonus = @bonus,
+        @absence_deduction = @absence_deduction,
+        @overtime_hours = @overtime_hours,
+        @food_allowance = @food_allowance,
+        @tax = @tax;
+
+    -- Return details along with calculated payroll values
+    SELECT 
+        e.employee_id,
+        e.name,
+        d.department_name,
+        g.grade,
+        e.gender,
+        et.type_name,
+        e.email,
+        e.cnic_num,
+        e.address,
+        e.phone,
+        e.hire_date,
+        @base_salary AS BaseSalary,
+        @absent_days AS UnexcusedAbsences,
+        @overtime_hours AS OvertimeHours,
+        @food_allowance AS FoodAllowance,
+        @bonus AS Bonus,
+        @absence_deduction AS AbsenceDeduction,
+        @tax AS Tax,
+        @net_salary AS NetSalary
+    FROM Employees e
+    JOIN Departments d ON e.department_id = d.department_id
+    JOIN Grades g ON e.grade_id = g.grade_id
+    JOIN EmployeeType et ON e.employee_type_id = et.employee_type_id
+    WHERE e.employee_id = @employee_id;
+END;
+GO
+
 
 
 
