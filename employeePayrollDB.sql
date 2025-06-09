@@ -856,7 +856,8 @@ SELECT * FROM Employees
 
 
 
-
+--view absences
+--run this
 CREATE OR ALTER VIEW EmployeeAbsences AS 
 SELECT 
     e.employee_id, 
@@ -901,8 +902,32 @@ INSERT INTO Attendance (employee_id, date, check_in, check_out, status) VALUES
 (4, '2025-02-21', '08:42:00', '17:30:00', 'Present'),
 (4, '2025-04-06', '08:48:00', '17:30:00', 'Present');
 
---run this 
+-- run this (9 june 2025)
 
+DROP TABLE IF EXISTS Payroll;
+GO
+-- run this (9 june 2025)
+CREATE TABLE Payroll (
+    payroll_id INT PRIMARY KEY IDENTITY(1,1),
+    employee_id INT NOT NULL,
+    pay_month VARCHAR(20) NOT NULL,
+    pay_year INT NOT NULL,
+    
+    base_salary DECIMAL(10, 2) NOT NULL,
+    deductions DECIMAL(10, 2) DEFAULT 0,
+    absence_deduction DECIMAL(10, 2) DEFAULT 0,
+    bonus DECIMAL(10, 2) DEFAULT 0,
+    food_allowance DECIMAL(10, 2) DEFAULT 0,
+    tax DECIMAL(10, 2) DEFAULT 0,
+    overtime_hours INT DEFAULT 0,
+
+    net_salary DECIMAL(10, 2),  -- Calculated in app logic or via trigger/procedure
+
+    FOREIGN KEY (employee_id) REFERENCES Employees(employee_id)
+);
+
+
+-- run this (9 june 2025)
 CREATE TABLE GradeBonus (
     grade_id INT,
     bonus_month INT,
@@ -912,39 +937,53 @@ CREATE TABLE GradeBonus (
     FOREIGN KEY (grade_id) REFERENCES Grades(grade_id) 
 );
 
-select * from GradeBonus;
-Select * from Grades;
+-- run this (9 june 2025)
+ALTER TABLE Payroll
+ADD CONSTRAINT UQ_EmployeeMonthYear UNIQUE (employee_id, pay_month, pay_year);
 
---run this
 
+
+-- run this (9 june 2025)
 CREATE OR ALTER PROCEDURE GetBonusByGrade
     @employee_id INT,
-    @month INT,
-    @year INT,
-    @bonus DECIMAL(10,2) OUTPUT
+    @bonus_month INT,
+    @bonus_year INT,
+    @bonus_amount DECIMAL(10,2) OUTPUT
 AS
 BEGIN
-    SELECT @bonus = gb.bonus_amount
-    FROM Employees e
-    JOIN GradeBonus gb ON e.grade_id = gb.grade_id
-    WHERE e.employee_id = @employee_id
-      AND gb.bonus_month = @month
-      AND gb.bonus_year = @year;
+    SET NOCOUNT ON;
 
-    IF @bonus IS NULL
-        SET @bonus = 0;
+    DECLARE @grade_id INT;
+    SELECT @grade_id = grade_id FROM Employees WHERE employee_id = @employee_id;
+
+    IF @grade_id IS NULL
+    BEGIN
+        SET @bonus_amount = 0;
+        RETURN;
+    END
+
+    SELECT @bonus_amount = bonus_amount
+    FROM GradeBonus
+    WHERE grade_id = @grade_id
+      AND bonus_month = @bonus_month
+      AND bonus_year = @bonus_year;
+
+    IF @bonus_amount IS NULL
+        SET @bonus_amount = 0;
 END;
-GO
 
---run this
-CREATE OR ALTER PROCEDURE GetBaseSalary
+
+-- run this (9 june 2025)
+CREATE OR ALTER PROCEDURE dbo.GetBaseSalary
     @employee_id INT,
     @base_salary DECIMAL(10,2) OUTPUT
 AS
 BEGIN
+    SET NOCOUNT ON;
+
     SELECT TOP 1 @base_salary = ss.base_salary
-    FROM Employees e
-    JOIN SalaryStructure ss ON e.department_id = ss.department_id
+    FROM dbo.Employees e
+    JOIN dbo.SalaryStructure ss ON e.department_id = ss.department_id
     WHERE e.employee_id = @employee_id;
 
     IF @base_salary IS NULL
@@ -954,26 +993,30 @@ BEGIN
 END
 GO
 
---run this
-CREATE OR ALTER PROCEDURE GetUnexcusedAbsences
+
+-- run this (9 june 2025)
+CREATE OR ALTER PROCEDURE dbo.GetUnexcusedAbsences
     @employee_id INT,
     @month INT,
     @year INT,
     @absent_days INT OUTPUT
 AS
 BEGIN
+    SET NOCOUNT ON;
+
     SELECT @absent_days = COUNT(*)
-    FROM Attendance a
+    FROM dbo.Attendance a
     WHERE a.employee_id = @employee_id
-      AND MONTH(a.date) = @month AND YEAR(a.date) = @year
+      AND MONTH(a.date) = @month
+      AND YEAR(a.date) = @year
       AND a.status = 'Absent'
       AND NOT EXISTS (
-          SELECT 1 FROM Leaves l
-          WHERE l.employee_id = a.employee_id 
+          SELECT 1
+          FROM dbo.Leaves l
+          JOIN dbo.LeaveStatus ls ON ls.status_id = l.status_id
+          WHERE l.employee_id = a.employee_id
             AND l.leave_date = a.date
-            AND EXISTS (
-                SELECT 1 FROM LeaveStatus ls WHERE ls.status_id = l.status_id AND ls.status = 'Approved'
-            )
+            AND ls.status = 'Approved'
       );
 
     IF @absent_days IS NULL
@@ -981,11 +1024,8 @@ BEGIN
 END
 GO
 
---run this
-ALTER TABLE Payroll
-ADD overtime_hours INT DEFAULT 0,
-    food_allowance DECIMAL(10,2) DEFAULT 0
-CREATE OR ALTER PROCEDURE GetOvertimeAndFoodAllowance 
+-- run this (9 june 2025)
+CREATE OR ALTER PROCEDURE dbo.GetOvertimeAndFoodAllowance
     @employee_id INT,
     @month INT,
     @year INT,
@@ -993,44 +1033,40 @@ CREATE OR ALTER PROCEDURE GetOvertimeAndFoodAllowance
     @food_allowance DECIMAL(10,2) OUTPUT
 AS
 BEGIN
-    DECLARE @monthStr VARCHAR(2) = CAST(@month AS VARCHAR);
+    SET NOCOUNT ON;
 
-    -- ✅ First, check if already saved in Payroll
-    IF EXISTS (
-        SELECT 1 FROM Payroll 
-        WHERE employee_id = @employee_id 
-          AND month = @monthStr AND year = @year
-          AND (overtime_hours IS NOT NULL OR food_allowance IS NOT NULL)
-    )
-    BEGIN
-        SELECT 
-            @overtime_hours = ISNULL(overtime_hours, 0),
-            @food_allowance = ISNULL(food_allowance, 0)
-        FROM Payroll
-        WHERE employee_id = @employee_id 
-          AND month = @monthStr AND year = @year;
-
-        RETURN;
-    END
-
-    -- ✅ Else, calculate fresh from Attendance table
     SELECT 
-        @overtime_hours = ISNULL(SUM(overtime_hours), 0),
-        @food_allowance = COUNT(CASE WHEN check_out >= '22:00:00' THEN 1 END) * 1000
-    FROM Attendance
-    WHERE employee_id = @employee_id
-      AND MONTH(date) = @month AND YEAR(date) = @year;
+        @overtime_hours = ISNULL(SUM(a.overtime_hours), 0),
+        @food_allowance = ISNULL(SUM(CASE 
+                                        WHEN CAST(a.check_out AS TIME) >= '22:00:00' 
+                                        THEN 1000 
+                                        ELSE 0 
+                                     END), 0)
+    FROM dbo.Attendance a
+    WHERE a.employee_id = @employee_id
+      AND MONTH(a.date) = @month
+      AND YEAR(a.date) = @year;
 
+    -- Redundant null checks, but kept for defensive coding
     IF @overtime_hours IS NULL SET @overtime_hours = 0;
     IF @food_allowance IS NULL SET @food_allowance = 0;
 END
 GO
 
-CREATE OR ALTER PROCEDURE CalculateTax
+-- run this (9 june 2025)
+CREATE OR ALTER PROCEDURE dbo.CalculateTax
     @base_salary DECIMAL(10,2),
     @tax DECIMAL(10,2) OUTPUT
 AS
 BEGIN
+    SET NOCOUNT ON;
+
+    IF @base_salary < 0
+    BEGIN
+        SET @tax = 0;
+        RETURN;
+    END
+
     IF @base_salary <= 50000
         SET @tax = 0;
     ELSE IF @base_salary <= 100000
@@ -1042,8 +1078,10 @@ BEGIN
 END
 GO
 
+
+-- run this (9 june 2025)
 CREATE OR ALTER PROCEDURE SetGradeBonus
-    @grade_id INT,
+    @grade INT,
     @bonus_month INT,
     @bonus_year INT,
     @bonus_amount DECIMAL(10,2)
@@ -1051,156 +1089,142 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    DECLARE @grade_id INT;
+    SELECT @grade_id = grade_id FROM Grades WHERE grade = @grade;
+
+    IF @grade_id IS NULL
+    BEGIN
+        RAISERROR('Grade not found.', 16, 1);
+        RETURN;
+    END
+
     IF EXISTS (
         SELECT 1 FROM GradeBonus
         WHERE grade_id = @grade_id AND bonus_month = @bonus_month AND bonus_year = @bonus_year
     )
     BEGIN
-        -- Update existing record
         UPDATE GradeBonus
         SET bonus_amount = @bonus_amount
         WHERE grade_id = @grade_id AND bonus_month = @bonus_month AND bonus_year = @bonus_year;
     END
     ELSE
     BEGIN
-        -- Insert new record
         INSERT INTO GradeBonus (grade_id, bonus_month, bonus_year, bonus_amount)
         VALUES (@grade_id, @bonus_month, @bonus_year, @bonus_amount);
     END
 END;
-GO
 
---run this
-CREATE OR ALTER PROCEDURE CalculateNetSalary
+
+
+
+-- run this (9 june 2025)
+CREATE OR ALTER PROCEDURE UpsertPayrollRecord
+    @employee_id INT,
+    @month VARCHAR(20),
+    @year INT,
     @base_salary DECIMAL(10,2),
     @deductions DECIMAL(10,2),
-    @overtime_hours INT,
     @bonus DECIMAL(10,2),
+    @absence_deduction DECIMAL(10,2),
+    @overtime_hours INT,
     @food_allowance DECIMAL(10,2),
-    @tax DECIMAL(10,2),
-    @net_salary DECIMAL(10,2) OUTPUT
-AS
-BEGIN
-    SET @net_salary = @base_salary - @deductions + (@overtime_hours * 200) + @bonus + @food_allowance - @tax;
-END
-GO
-CREATE OR ALTER PROCEDURE CalculatePayrollForEmployee
-    @employee_id INT,
-    @month INT,
-    @year INT
+    @tax DECIMAL(10,2)
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    DECLARE @base_salary DECIMAL(10,2),
-            @bonus DECIMAL(10,2),
-            @deductions DECIMAL(10,2),
-            @net_salary DECIMAL(10,2),
-            @tax DECIMAL(10,2),
-            @overtime_hours INT = 0,
-            @food_allowance DECIMAL(10,2) = 0,
-            @absence_deduction DECIMAL(10,2) = 0;
-
-    DECLARE @monthStr VARCHAR(2) = CAST(@month AS VARCHAR);
-
-    -- ✅ 1. Check if Payroll already exists
     IF EXISTS (
         SELECT 1 FROM Payroll
-        WHERE employee_id = @employee_id AND month = @monthStr AND year = @year
+        WHERE employee_id = @employee_id AND pay_month = @month AND pay_year = @year
     )
     BEGIN
-        -- Load saved data
-        SELECT 
-            e.employee_id,
-            e.name,
-            d.department_name,
-            g.grade,
-            e.gender,
-            et.type_name,
-            e.email,
-            e.cnic_num,
-            e.address,
-            e.phone,
-            e.hire_date,
-            p.base_salary AS BaseSalary,
-            NULL AS UnexcusedAbsences,
-            NULL AS OvertimeHours,
-            NULL AS FoodAllowance,
-            p.bonus AS Bonus,
-            p.deductions AS AbsenceDeduction,
-            NULL AS Tax,
-            p.net_salary AS NetSalary
-        FROM Employees e
-        JOIN Payroll p ON e.employee_id = p.employee_id
-        JOIN Departments d ON e.department_id = d.department_id
-        JOIN Grades g ON e.grade_id = g.grade_id
-        JOIN EmployeeType et ON e.employee_type_id = et.employee_type_id
-        WHERE p.employee_id = @employee_id AND p.month = @monthStr AND p.year = @year;
-
-        RETURN;
+        -- Update existing record without net_salary (computed)
+        UPDATE Payroll
+        SET 
+            base_salary = @base_salary,
+            deductions = @deductions,
+            bonus = @bonus,
+            absence_deduction = @absence_deduction,
+            overtime_hours = @overtime_hours,
+            food_allowance = @food_allowance,
+            tax = @tax
+        WHERE employee_id = @employee_id AND pay_month = @month AND pay_year = @year;
     END
+    ELSE
+    BEGIN
+        -- Insert new record without net_salary (computed)
+        INSERT INTO Payroll (
+            employee_id, pay_month, pay_year, base_salary, deductions, bonus, 
+            absence_deduction, overtime_hours, food_allowance, tax
+        ) VALUES (
+            @employee_id, @month, @year, @base_salary, @deductions, @bonus, 
+            @absence_deduction, @overtime_hours, @food_allowance, @tax
+        );
+    END
+END
+GO
 
-    -- ✅ 2. Calculate live (fallback if no saved payroll)
-    EXEC GetBonusByGrade @employee_id, @month, @year, @bonus OUTPUT;
-    EXEC GetBaseSalary @employee_id, @base_salary OUTPUT;
-    EXEC GetUnexcusedAbsences @employee_id, @month, @year, @absence_deduction OUTPUT;
-    EXEC GetOvertimeAndFoodAllowance @employee_id, @month, @year, @overtime_hours OUTPUT, @food_allowance OUTPUT;
-
-    DECLARE @gross_income DECIMAL(10,2) = @base_salary + (@overtime_hours * 200) + @food_allowance + @bonus;
-    EXEC CalculateTax @gross_income, @tax OUTPUT;
-
-    SET @deductions = (@absence_deduction * 1000) + @tax;
-    SET @net_salary = @gross_income - @deductions;
-
-    SELECT 
-        e.employee_id,
-        e.name,
-        d.department_name,
-        g.grade,
-        e.gender,
-        et.type_name,
-        e.email,
-        e.cnic_num,
-        e.address,
-        e.phone,
-        e.hire_date,
-        @base_salary AS BaseSalary,
-        @absence_deduction AS UnexcusedAbsences,
-        @overtime_hours AS OvertimeHours,
-        @food_allowance AS FoodAllowance,
-        @bonus AS Bonus,
-        @absence_deduction * 1000 AS AbsenceDeduction,
-        @tax AS Tax,
-        @net_salary AS NetSalary
-    FROM Employees e
-    JOIN Departments d ON e.department_id = d.department_id
-    JOIN Grades g ON e.grade_id = g.grade_id
-    JOIN EmployeeType et ON e.employee_type_id = et.employee_type_id
-    WHERE e.employee_id = @employee_id;
-END;
-
-CREATE OR ALTER PROCEDURE UpdatePayroll
-    @employee_id INT,
-    @month VARCHAR(20),
+-- run this (9 june 2025)
+ALTER PROCEDURE UpdatePayroll
+    @emp_id INT,
+    @month VARCHAR(2),
     @year INT,
     @base_salary DECIMAL(10, 2),
     @bonus DECIMAL(10, 2),
-    @deductions DECIMAL(10, 2)
+    @total_deductions DECIMAL(10, 2),
+    @tax DECIMAL(10, 2),
+    @absence_deduction DECIMAL(10, 2),
+    @food_allowance DECIMAL(10, 2),
+    @overtime_hours INT
 AS
 BEGIN
-    IF EXISTS (
-        SELECT 1 FROM Payroll WHERE employee_id = @employee_id AND month = @month AND year = @year
-    )
+    SET NOCOUNT ON;
+
+    DECLARE @overtime_pay DECIMAL(10, 2);
+    SET @overtime_pay = @overtime_hours * 200;  -- assuming 200 per hour overtime rate
+
+    DECLARE @net_salary DECIMAL(10, 2);
+    SET @net_salary = @base_salary 
+                      + @bonus 
+                      + @overtime_pay 
+                      + @food_allowance
+                      - @absence_deduction
+                      - @total_deductions
+                      - @tax;
+
+    -- Update or insert into Payroll table
+    IF EXISTS (SELECT 1 FROM Payroll WHERE employee_id = @emp_id AND pay_month = @month AND pay_year = @year)
     BEGIN
         UPDATE Payroll
         SET base_salary = @base_salary,
             bonus = @bonus,
-            deductions = @deductions
-        WHERE employee_id = @employee_id AND month = @month AND year = @year;
+            overtime_hours = @overtime_hours,
+            food_allowance = @food_allowance,
+            absence_deduction = @absence_deduction,
+            tax = @tax,
+            deductions = @total_deductions,
+            net_salary = @net_salary
+        WHERE employee_id = @emp_id AND pay_month = @month AND pay_year = @year;
     END
     ELSE
     BEGIN
-        INSERT INTO Payroll (employee_id, month, year, base_salary, bonus, deductions)
-        VALUES (@employee_id, @month, @year, @base_salary, @bonus, @deductions);
+        INSERT INTO Payroll (
+            employee_id, pay_month, pay_year, base_salary, bonus,
+            overtime_hours, food_allowance, absence_deduction,
+            tax, deductions, net_salary
+        )
+        VALUES (
+            @emp_id, @month, @year, @base_salary, @bonus,
+            @overtime_hours, @food_allowance, @absence_deduction,
+            @tax, @total_deductions, @net_salary
+        );
     END
 END;
+
+
+
+
+
+
+
+
